@@ -2,17 +2,89 @@
 
 ## Parte 1
 
-**1.** El largo de la dirección IP 136.155.0.2 es de 32 bits.
+**1.1** El largo de la dirección IP 136.155.0.2 es de 32 bits.
 
-**2.** Dirección IP origen: 190.190.1.X (Con X el que le asigne el DHCP, en este caso, 190.190.1.2)
+**1.2** Dirección IP origen: 190.190.1.X (Con X el que le asigne el DHCP, en este caso, 190.190.1.2)
 
-**3.** Dirección IP origen: al igual que la anterior, la dirección IP de origen es 190.190.1.X (PC de Alice, en este caso, 190.190.1.2)
+**1.3** Dirección IP origen: al igual que la anterior, la dirección IP de origen es 190.190.1.X (PC de Alice, en este caso, 190.190.1.2)
+
+**1.4 PROCESO DE ENTRADA (Cuando el Servidor DNS (`136.155.0.2`) recibe el ICMP Echo Request de PC Alice)** 
+
+El paquete llega a la interfaz de red del Servidor DNS (FastEthernet0) a través del SwitchDNS. El último router que manejó el paquete antes de entrar a la LAN del DNS fue el "router gateway de la red DNS".
+
+1.  **Capa 1: Física (Entrada)**
+    *   La tarjeta de red (NIC) del Servidor DNS recibe las señales eléctricas/ópticas del cable Ethernet (conectado al SwitchDNS) que representan los bits de la trama.
+    *   Convierte estas señales nuevamente en una secuencia de bits.
+
+2.  **Capa 2: Enlace de Datos (Entrada)**
+    *   La NIC ensambla los bits en una **trama Ethernet**.
+    *   **Verifica la Dirección MAC de Destino:** Comprueba que la dirección MAC de destino en la trama Ethernet coincide con la dirección MAC de la NIC del Servidor DNS. (El "router gateway de la red DNS" habría puesto la MAC del ServerDNS como destino en la trama al reenviar el paquete a la LAN del DNS).
+    *   **Verifica Errores (FCS):** Calcula el Frame Check Sequence y lo compara con el recibido. Si no coinciden, la trama se descarta.
+    *   Si la MAC es correcta y no hay errores, **desencapsula el paquete IP** de la trama Ethernet (se eliminan el encabezado y el tráiler de Ethernet).
+    *   El paquete IP resultante se pasa a la Capa de Red.
+
+3.  **Capa 3: Red (Entrada)**
+    *   Recibe el paquete IP de la Capa de Enlace.
+    *   **Verifica Encabezado IP:**
+        *   Confirma la versión (IPv4).
+        *   Verifica la longitud del encabezado (IHL).
+        *   Calcula y compara el checksum del encabezado IP. Si no coincide, el paquete se descarta.
+    *   **Verifica la Dirección IP de Destino:** Confirma que la IP de destino del paquete (`136.155.0.2`) es la del Servidor DNS. Como sí lo es, el servidor acepta el paquete para su procesamiento.
+    *   **Examina el campo Protocolo:** En el encabezado IP, este campo será `1` (o `0x01`), indicando que la carga útil del paquete IP es un mensaje **ICMP**.
+    *   **Desencapsula el mensaje ICMP** del paquete IP (se elimina el encabezado IP).
+    *   El mensaje ICMP se pasa al manejador de protocolo ICMP del sistema operativo.
+
+4.  **Procesamiento ICMP (Actuando en la Capa de Red o como un protocolo auxiliar de esta)**
+    *   Recibe el mensaje ICMP.
+    *   **Identifica el Tipo de Mensaje ICMP:** Será un **ICMP Echo Request (Tipo 8)**, ya que la "Parte 1" de la tarea especifica un "Simple PDU" (que en Packet Tracer es un ping).
+    *   Extrae los datos (payload), el identificador y el número de secuencia del Echo Request.
+    *   El sistema operativo determina que debe generar una respuesta (ICMP Echo Reply).
+
+**PROCESO DE SALIDA (Cuando el Servidor DNS (`136.155.0.2`) envía el ICMP Echo Reply a PC Alice)**
+
+El Servidor DNS ahora prepara y envía la respuesta.
+
+1.  **Generación del Mensaje ICMP (Actuando en la Capa de Red o como un protocolo auxiliar de esta)**
+    *   Se construye un mensaje **ICMP Echo Reply (Tipo 0)**.
+    *   Este mensaje incluirá:
+        *   El mismo identificador y número de secuencia del Echo Request recibido.
+        *   Los mismos datos (payload) que venían en el Echo Request.
+    *   Este mensaje ICMP está destinado a la dirección IP origen del Echo Request (la IP de PC Alice).
+
+2.  **Capa 3: Red (Salida)**
+    *   Recibe el mensaje ICMP Echo Reply para ser enviado.
+    *   **Encapsula el mensaje ICMP en un nuevo paquete IP:**
+        *   **Dirección IP de Origen:** `136.155.0.2` (la IP del Servidor DNS).
+        *   **Dirección IP de Destino:** La IP de PC Alice.
+        *   **Campo Protocolo:** Se establece a `1` (ICMP).
+        *   Se establece un TTL (Time To Live) inicial (ej. 64 o 128).
+        *   Se calcula y se inserta el **checksum del encabezado IP**.
+        *   Otros campos del encabezado IP se completan según sea necesario.
+    *   **Decisión de Enrutamiento:** El Servidor DNS consulta su tabla de enrutamiento. Dado que la IP de destino (PC Alice) está en una red diferente, el Servidor DNS determinará que el paquete debe ser enviado a su **router gateway predeterminado** (el "router gateway de la red DNS").
+    *   El paquete IP, junto con la dirección IP del siguiente salto (la IP del "router gateway de la red DNS"), se pasa a la Capa de Enlace.
+
+3.  **Capa 2: Enlace de Datos (Salida)**
+    *   Recibe el paquete IP y la información del siguiente salto (la IP del gateway de la red DNS).
+    *   **Resolución de Dirección MAC (ARP):** El servidor necesita la dirección MAC de la interfaz de su router gateway.
+        *   Si la MAC del gateway ya está en la caché ARP del servidor, la usa.
+        *   Si no, el servidor enviará una **solicitud ARP** a la red local (LAN del DNS) preguntando "¿Quién tiene la IP [IP del gateway de la red DNS]? Decidme vuestra MAC". El gateway responderá con su MAC.
+    *   Una vez obtenida la MAC del gateway, **encapsula el paquete IP en una nueva trama Ethernet:**
+        *   **Dirección MAC de Origen:** La dirección MAC de la NIC del Servidor DNS.
+        *   **Dirección MAC de Destino:** La dirección MAC de la interfaz del "router gateway de la red DNS".
+        *   **Campo EtherType:** Se establece a `0x0800` para indicar que la carga útil es un paquete IPv4.
+        *   Se calcula y se añade el **FCS (Frame Check Sequence)** al final de la trama.
+    *   La trama Ethernet completa se pasa a la Capa Física.
+
+4.  **Capa 1: Física (Salida)**
+    *   La NIC del Servidor DNS convierte la secuencia de bits de la trama Ethernet en señales eléctricas/ópticas apropiadas para el medio (cable Ethernet).
+    *   Transmite estas señales a través del cable hacia el SwitchDNS, desde donde la trama será reenviada al "router gateway de la red DNS".
+
 
 ## Parte 2
-**1.** El largo de la HTTP Request es de 30 bytes.
+**2.1** El largo de la HTTP Request es de 30 bytes.
 
 
-**2. Describa que tipos de paquetes se estan usando, es decir, decir que tipo de paquete son, por que se usan estos paquetes y que deben contener.**
+**2.2 Describa que tipos de paquetes se estan usando, es decir, decir que tipo de paquete son, por que se usan estos paquetes y que deben contener.**
 
 *   **Paquetes DNS:**
     *   **Tipo:** Son paquetes de consulta DNS (Query) y respuesta DNS (Response).
@@ -78,7 +150,7 @@
         *   Opciones (raramente usadas).
         *   Datos (Payload): que sería un segmento UDP o un segmento TCP.
 
-**3. Describa de forma ordenada que rutas toman los paquetes descritos en la pregunta anterior (especificar por donde pasan y en que orden).**
+**2.3. Describa de forma ordenada que rutas toman los paquetes descritos en la pregunta anterior (especificar por donde pasan y en que orden).**
 
 Basándonos en tu descripción del flujo y la topología implícita:
 
@@ -156,8 +228,7 @@ Basándonos en tu descripción del flujo y la topología implícita:
         6.  Switch Alice
         7.  PC Alice
 
-## **Casa Bob**
-Ahora, vamos a la pregunta:
+**2.4 Casa Bob**
 
 **Paquetes Usados y sus Rutas (Proceso de Bob):**
 

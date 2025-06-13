@@ -4,9 +4,9 @@
 
 **1.** El largo de la dirección IP 136.155.0.2 es de 32 bits.
 
-**2.** Dirección IP origen: 136.155.0.2
+**2.** Dirección IP origen: 190.190.1.X (Con X el que le asigne el DHCP, en este caso, 190.190.1.2)
 
-**3.** Dirección IP destino: 190.190.1.2
+**3.** Dirección IP origen: al igual que la anterior, la dirección IP de origen es 190.190.1.X (PC de Alice, en este caso, 190.190.1.2)
 
 ## Parte 2
 **1.** El largo de la HTTP Request es de 30 bytes.
